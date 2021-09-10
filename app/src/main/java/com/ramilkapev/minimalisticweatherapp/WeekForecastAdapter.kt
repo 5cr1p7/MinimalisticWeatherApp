@@ -1,6 +1,5 @@
 package com.ramilkapev.minimalisticweatherapp
 
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,6 +10,7 @@ import com.bumptech.glide.Glide
 import com.ramilkapev.minimalisticweatherapp.RequestItem.Daily
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 class WeekForecastAdapter(private val daily: List<Daily>?) :
     RecyclerView.Adapter<WeekForecastAdapter.ViewHolder>() {
@@ -23,12 +23,14 @@ class WeekForecastAdapter(private val daily: List<Daily>?) :
         var minTempTv: TextView? = null
         var maxTempTv: TextView? = null
         var dateTv: TextView? = null
+        var situation: TextView? = null
 
         init {
             weatherIcon = itemView.findViewById(R.id.weatherIcon)
             minTempTv = itemView.findViewById(R.id.minTemp)
             maxTempTv = itemView.findViewById(R.id.maxTemp)
             dateTv = itemView.findViewById(R.id.dateTv)
+            situation = itemView.findViewById(R.id.weatherDescription)
         }
     }
 
@@ -42,11 +44,10 @@ class WeekForecastAdapter(private val daily: List<Daily>?) :
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        Log.d("TAGsuccess", position.toString())
-        Log.d("TAGsuccess", daily.toString())
         Glide.with(holder.itemView).load("${MainFragment.IMAGE_URL}${daily!![position].weather[0].icon}@2x.png").centerCrop().into(holder.weatherIcon!!)
-        holder.minTempTv?.text = "Min: ${daily[position].temp.min}"
-        holder.maxTempTv?.text = "Max: ${daily[position].temp.max}"
+        holder.minTempTv?.text = "Min: ${daily[position].temp.min.roundToInt()} ℃"
+        holder.maxTempTv?.text = "Max: ${daily[position].temp.max.roundToInt()} ℃"
+        holder.situation?.text = "${daily[position].weather[0].description}"
         holder.dateTv?.text = "${formatter.format(Date(daily[position].dt.toLong() * 1000))}"
 
     }

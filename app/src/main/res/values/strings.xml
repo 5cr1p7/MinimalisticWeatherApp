@@ -2,4 +2,6 @@
     <string name="app_name">MinimalisticWeatherApp</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="cityEtHint">City</string>
+    <string name="emptyOrIncorrectCityName">Fill in the city name</string>
 </resources>

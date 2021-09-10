@@ -12,10 +12,19 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:textSize="18sp"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Today" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/weatherDescription"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        app:layout_constraintStart_toStartOf="@id/dateTv"
+        app:layout_constraintTop_toBottomOf="@id/dateTv"
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:text="Good" />
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/weatherIcon"
@@ -26,16 +35,6 @@
         app:layout_constraintTop_toTopOf="parent"
         android:layout_marginEnd="10dp"
         tools:src="@tools:sample/avatars[10]" />
-
-<!--    <androidx.appcompat.widget.AppCompatTextView-->
-<!--        android:id="@+id/dayTemp"-->
-<!--        android:layout_width="wrap_content"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:textSize="16sp"-->
-<!--        app:layout_constraintEnd_toEndOf="parent"-->
-<!--        app:layout_constraintStart_toEndOf="@+id/weatherIcon"-->
-<!--        app:layout_constraintTop_toTopOf="@id/weatherIcon"-->
-<!--        tools:text="10.0" />-->
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/minTemp"

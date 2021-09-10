@@ -1,6 +1,7 @@
 package com.ramilkapev.minimalisticweatherapp
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -14,65 +15,85 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.TextView
+import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.widget.ImageViewCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import com.ramilkapev.minimalisticweatherapp.RequestItem.Request
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.collections.ArrayList
+import kotlin.math.roundToInt
 
 class MainFragment : Fragment(R.layout.fragment_main) {
 
     lateinit var result: ((isAvailable: Boolean, type: ConnectionType?) -> Unit)
     private val api = NetworkClient()
     private var weatherData: TextView? = null
-    private var weatherDataWeek: TextView? = null
+    private var currentCity: TextView? = null
     private var weatherIcon: ImageView? = null
+    private var cityEntry: EditText? = null
     private var recyclerView: RecyclerView? = null
     private var city: String = ""
-    private val citites: ArrayList<Address> = arrayListOf()
+    private val cities: ArrayList<Address> = arrayListOf()
+    private var adapter: ArrayAdapter<String>? = null
+    private var isPermissionGranted = false
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var lat = 0.0
+    private var long = 0.0
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
         recyclerView = view.findViewById(R.id.weeklyItemsRv)
-
-
-        weatherData = view.findViewById(R.id.text)
+        weatherData = view.findViewById(R.id.currentWeather)
+        currentCity = view.findViewById(R.id.currentCityTv)
         weatherIcon = view.findViewById(R.id.weatherIcon)
-        val cityEntry = view.findViewById<EditText>(R.id.et)
+        cityEntry = view.findViewById<EditText>(R.id.et) as AutoCompleteTextView
 
+        (cityEntry as AutoCompleteTextView).setAdapter(adapter)
 
         if (isNetworkConnected()) {
-            getLocation()
-            cityEntry.setOnEditorActionListener { v, actionId, event ->
-                if (actionId == EditorInfo.IME_ACTION_DONE) {
-                    city = cityEntry.text.toString()
-//                    Log.d("TAGedit", city)
+            requestLocation()
+            (cityEntry as AutoCompleteTextView).setOnEditorActionListener { text, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_DONE && text.text.isNotEmpty()) {
+                    city = (cityEntry as AutoCompleteTextView).text.toString()
                     getLatLon(city)
-                    Log.d("TAGedit", citites.toString())
-                    api.getNextSevenDays(citites[0].latitude, citites[0].longitude, callback)
+                    api.getNextSevenDays(cities[0].latitude, cities[0].longitude, callback)
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.emptyOrIncorrectCityName),
+                        Toast.LENGTH_SHORT
+                    )
+                        .show()
+                }
+
+                (cityEntry as AutoCompleteTextView).setOnTouchListener { v, event ->
+                    val DRAWABLE_RIGHT = 2
+                    if (event.action == MotionEvent.ACTION_UP) {
+                        if (event.rawX >= ((cityEntry as AutoCompleteTextView).right - (cityEntry as AutoCompleteTextView).compoundDrawables[DRAWABLE_RIGHT].bounds
+                                .width())
+                        ) {
+                            requestLocation()
+                        }
+                    }
+                    return@setOnTouchListener false
                 }
                 return@setOnEditorActionListener true
             }
-            city = "Moscow"
-            getLatLon(city)
-            api.getNextSevenDays(citites[0].latitude, citites[0].longitude, callback)
         } else {
             AlertDialog.Builder(requireContext()).setTitle("No Internet Connection")
                 .setMessage("Please check your internet connection and try again")
@@ -83,24 +104,25 @@ class MainFragment : Fragment(R.layout.fragment_main) {
 
     private val callback = object : Callback<Request> {
         override fun onFailure(call: Call<Request>?, t: Throwable?) {
-            Log.d("TAGfail", t?.message.toString())
+            Log.d("TAG", t?.message.toString())
         }
 
         override fun onResponse(call: Call<Request>?, response: Response<Request>?) {
             response?.isSuccessful.let {
-                val formatter = SimpleDateFormat("dd/MM/yyyy")
                 val resultList = response?.body()
-                Glide.with(requireView()).load("${IMAGE_URL}${resultList?.current?.weather?.get(0)?.icon}@2x.png").centerCrop().into(weatherIcon!!)
-                weatherData?.text = "${resultList?.current?.temp}\n\n"
-//                weatherDataWeek?.text = ""
-//                resultList?.daily?.forEach {
-//                    weatherDataWeek?.append("${formatter.format(Date(it.dt.toLong() * 1000))} || Day: ${it.temp.day} - Min: ${it.temp.min} - Max: ${it.temp.max} - ${it.wind_speed} - ${it.wind_deg}\n")
-//                }
-                Log.d("TAGsuccess", resultList?.daily.toString())
+                Glide.with(requireView())
+                    .load("${IMAGE_URL}${resultList?.current?.weather?.get(0)?.icon}@2x.png")
+                    .centerCrop().into(weatherIcon!!)
+                weatherData?.text = "${resultList?.current?.temp?.roundToInt()} ℃"
 
                 val decoration = DividerItemDecoration(context, DividerItemDecoration.VERTICAL)
                 context?.let {
-                    decoration.setDrawable(ContextCompat.getDrawable(it, R.drawable.inset_divider)!!)
+                    decoration.setDrawable(
+                        ContextCompat.getDrawable(
+                            it,
+                            R.drawable.inset_divider
+                        )!!
+                    )
                 }
                 recyclerView?.layoutManager = LinearLayoutManager(requireContext())
                 recyclerView?.adapter = WeekForecastAdapter(resultList?.daily)
@@ -109,7 +131,7 @@ class MainFragment : Fragment(R.layout.fragment_main) {
         }
     }
 
-    private fun getLocation() {
+    private fun requestLocation() {
         if (ActivityCompat.checkSelfPermission(
                 requireContext(),
                 Manifest.permission.ACCESS_COARSE_LOCATION
@@ -120,39 +142,48 @@ class MainFragment : Fragment(R.layout.fragment_main) {
                 arrayOf(
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 ),
-                LOCATION_PERMISSION_REQUEST_CODE)
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        } else {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    lat = location.latitude
+                    long = location.longitude
+                    getLatLon(lat, long)
+                    api.getNextSevenDays(lat, long, callback)
+                }
+            }
         }
     }
-
-//    override fun onRequestPermissionsResult(
-//        requestCode: Int,
-//        permissions: Array<String>,
-//        grantResults: IntArray
-//    ) {
-//        if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
-//            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-//            return
-//        }
-//        if (isPermissionGranted(
-//                permissions,
-//                grantResults,
-//                Manifest.permission.ACCESS_COARSE_LOCATION
-//            )
-//        ) {
-//            // Enable the my location layer if the permission has been granted.
-//            enableMyLocation()
-//        } else {
-//            permissionDenied = true
-//        }
-//    }
 
     private fun getLatLon(city: String) {
         if (Geocoder.isPresent()) {
             val geocoder = Geocoder(requireContext(), Locale.getDefault())
             val addresses: List<Address> = geocoder.getFromLocationName(city, 3)
-            Log.d("TAGgor", addresses.toString())
-            citites.clear()
-            citites.addAll(addresses)
+            if (addresses.isNotEmpty()) {
+                val addressesSearch: List<Address> =
+                    geocoder.getFromLocation(addresses[0].latitude, addresses[0].longitude, 3)
+                cities.clear()
+                cities.addAll(addresses)
+                currentCity?.text =
+                    "${addressesSearch[0].locality}, ${addressesSearch[0].countryName}"
+                (cityEntry as AutoCompleteTextView).setText("${addressesSearch[0].locality}, ${addressesSearch[0].countryName}")
+            } else {
+                Toast.makeText(requireContext(), "Enter the correct city name", Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+    }
+
+    private fun getLatLon(lat: Double, lon: Double) {
+        if (Geocoder.isPresent()) {
+            val geocoder = Geocoder(requireContext(), Locale.getDefault())
+            val addressesSearch: List<Address> =
+                geocoder.getFromLocation(lat, lon, 3)
+            currentCity?.text =
+                "${addressesSearch[0].locality}, ${addressesSearch[0].countryName}"
+            (cityEntry as AutoCompleteTextView).setText("${addressesSearch[0].locality}, ${addressesSearch[0].countryName}")
         }
     }
 
@@ -191,6 +222,20 @@ class MainFragment : Fragment(R.layout.fragment_main) {
             } else {
                 result(false, null)
             }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                requestLocation()
+            }
+
         }
     }
 
